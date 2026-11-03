@@ -36,9 +36,15 @@ The usual flow is `todo` → `in-progress` → `done`. Use `blocked` when work
 cannot continue and return to `in-progress` when it resumes.
 
 Keep Summary brief: describe the result, next step, or blocker. Record detailed
-verification evidence in the ticket's notes. Leave Commit(s) blank until work
-is committed, then record short implementation hashes or the merge commit.
-Completion does not itself require a commit; never invent a hash.
+verification evidence in the ticket's notes. The status table has three columns:
+Ticket, Status, and Summary. Completion does not itself require a commit.
+
+Find related commits through the ticket ID in commit messages, following the
+format in `AGENTS.md`. For example:
+
+```sh
+git log --oneline --grep='(IMPROVEMENT-002)' --fixed-strings
+```
 
 Triage is optional and separate from lifecycle tracking. When a triage skill
 runs, follow `docs/agents/triage-labels.md`.

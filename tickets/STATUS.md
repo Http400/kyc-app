@@ -11,6 +11,6 @@ not been assessed against the acceptance criteria during this setup.
 | [TICKET-001](TICKET-001-frontend-registration.md) | todo | Applicant registration; implementation not assessed. |
 | [TICKET-002](TICKET-002-frontend-login.md) | todo | Applicant login; implementation not assessed. |
 | [TICKET-003](TICKET-003-frontend-save-and-resume-form.md) | todo | Save and resume Applicant form; implementation not assessed. |
-| [IMPROVEMENT-001](IMPROVEMENT-001-fix-npm-audit-vulnerabilities.md) | todo | Resolve remaining npm audit findings across application and development dependencies. |
+| [IMPROVEMENT-001](IMPROVEMENT-001-fix-npm-audit-vulnerabilities.md) | done | Targeted fixes verified; no critical/high findings. Assessment exceptions accepted: 15 full/5 production affected packages (production: Swagger chain), plus retained legacy-peer-deps. See ticket for rationale. |
 | [IMPROVEMENT-002](IMPROVEMENT-002-fix-lint-failure.md) | done | Replaced search synchronization effect; route regressions, lint, frontend checks, and quality pass. |
 | [IMPROVEMENT-003](IMPROVEMENT-003-fix-storybook-development-previews.md) | done | Previews and Docs render; cold/warm browser checks, configuration typecheck, quality, and build pass. |

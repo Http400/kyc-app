@@ -25,6 +25,6 @@ Thumbs.db
 .vscode/
 backend/bin/
 
-# Local IMPROVEMENT-003 diagnostics; keep its plan and verification summary tracked.
-/.scratch/IMPROVEMENT-003-fix-storybook-development-previews/evidence/
-/.scratch/IMPROVEMENT-003-fix-storybook-development-previews/smoke.mjs
+# Local scratch diagnostics; keep plans, notes and research available for tracking.
+/.scratch/**/evidence/
+/.scratch/**/*.mjs

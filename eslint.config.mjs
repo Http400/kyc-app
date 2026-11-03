@@ -1,5 +1,5 @@
-import js from '@eslint/js'
 import { fixupPluginRules } from '@eslint/compat'
+import js from '@eslint/js'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import { importX } from 'eslint-plugin-import-x'
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
@@ -160,6 +160,15 @@ export default defineConfig([
     files: ['frontend/**/*.mjs'],
     languageOptions: {
       globals: globals.node,
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-console': ['error', { allow: ['log', 'warn', 'error'] }],
     },
   },
   eslintPluginPrettierRecommended,

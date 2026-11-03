@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "types": ["vitest/globals"]
   },
-  "include": ["DS", ".storybook"]
+  "include": ["DS", ".storybook/**/*.ts", ".storybook/**/*.tsx"]
 }

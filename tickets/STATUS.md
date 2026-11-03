@@ -13,3 +13,4 @@ not been assessed against the acceptance criteria during this setup.
 | [TICKET-003](TICKET-003-frontend-save-and-resume-form.md) | todo | Save and resume Applicant form; implementation not assessed. |
 | [IMPROVEMENT-001](IMPROVEMENT-001-fix-npm-audit-vulnerabilities.md) | todo | Resolve remaining npm audit findings across application and development dependencies. |
 | [IMPROVEMENT-002](IMPROVEMENT-002-fix-lint-failure.md) | done | Replaced search synchronization effect; route regressions, lint, frontend checks, and quality pass. |
+| [IMPROVEMENT-003](IMPROVEMENT-003-fix-storybook-development-previews.md) | done | Previews and Docs render; cold/warm browser checks, configuration typecheck, quality, and build pass. |

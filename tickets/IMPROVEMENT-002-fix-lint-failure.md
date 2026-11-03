@@ -26,7 +26,7 @@ advancing past its lint step.
   including synchronization after navigation and interaction between search,
   status, and pagination.
 - Record the cause, chosen approach, and verification results in
-  `.scratch/IMPROVEMENT-002/notes.md` when implementation begins.
+  `.scratch/IMPROVEMENT-002-fix-lint-failure/notes.md` when implementation begins.
 
 ## Out of scope
 
@@ -38,18 +38,18 @@ advancing past its lint step.
 
 ## Acceptance criteria
 
-- [ ] Root `npm run lint` exits with code 0 and reports no errors or warnings
+- [x] Root `npm run lint` exits with code 0 and reports no errors or warnings
   across its existing `DS` and `frontend` scope.
-- [ ] The synchronous state-setting effect is replaced with an approach that
+- [x] The synchronous state-setting effect is replaced with an approach that
   satisfies `react-hooks/set-state-in-effect` without lint suppression or
   deferring the same update solely to bypass the rule.
-- [ ] Search input remains usable while typing, and URL/loader updates from
+- [x] Search input remains usable while typing, and URL/loader updates from
   direct navigation and browser back/forward navigation are reflected in the
   displayed search value without stale values or navigation loops.
-- [ ] Search and status changes still reset pagination to page 0; page changes
+- [x] Search and status changes still reset pagination to page 0; page changes
   preserve the active search and status filters.
-- [ ] Focused regression tests verify the affected route behavior, and
+- [x] Focused regression tests verify the affected route behavior, and
   `npm run test --workspace @kyc/frontend` and
   `npm run typecheck --workspace @kyc/frontend` pass.
-- [ ] `npm run quality` passes, with verification results recorded in the
+- [x] `npm run quality` passes, with verification results recorded in the
   ticket notes.

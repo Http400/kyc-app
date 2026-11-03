@@ -1,14 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createMemoryRouter, RouterProvider, useLoaderData } from 'react-router'
 import { expect, describe, it, vi } from 'vitest'
 
-import {
+import ReviewerApplicationsPage, {
+  clientLoader,
   parseReviewerApplicationsSearch,
   ReviewerApplicationsView,
   type ReviewerApplicationsResponse,
 } from './applications'
 
-const response: ReviewerApplicationsResponse = {
+import type { ComponentProps } from 'react'
+
+const response = {
   kind: 'found',
   result: {
     summary: { pendingReview: 2, inProgress: 3, approvedThisMonth: 1 },
@@ -22,7 +26,152 @@ const response: ReviewerApplicationsResponse = {
       },
     ],
   },
+} satisfies ReviewerApplicationsResponse
+
+function renderRoute(initialEntry: string, beforeLoad?: () => Promise<void>) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/reviewer/applications',
+        loader: async ({ request }) => {
+          await beforeLoad?.()
+          const data = await clientLoader({ request } as Parameters<
+            typeof clientLoader
+          >[0])
+          return {
+            ...data,
+            response: {
+              ...response,
+              result: {
+                ...response.result,
+                pagination: {
+                  page: data.page,
+                  pageSize: 10,
+                  totalItems: 30,
+                  totalPages: 3,
+                },
+              },
+            },
+          }
+        },
+        Component: function TestRoute() {
+          const loaderData = useLoaderData<typeof clientLoader>()
+          return (
+            <ReviewerApplicationsPage
+              loaderData={loaderData}
+              // Framework-only metadata is unused by this page.
+              {...({} as Omit<
+                ComponentProps<typeof ReviewerApplicationsPage>,
+                'loaderData'
+              >)}
+            />
+          )
+        },
+        HydrateFallback: () => null,
+      },
+    ],
+    { initialEntries: [initialEntry] },
+  )
+  const view = render(<RouterProvider router={router} />)
+  return { router, ...view }
 }
+
+async function expectRouteSearch(
+  router: ReturnType<typeof createMemoryRouter>,
+  expected: { q: string; status: string; page: string },
+) {
+  await waitFor(() => {
+    expect(router.state.navigation.state).toBe('idle')
+    expect(
+      Object.fromEntries(new URLSearchParams(router.state.location.search)),
+    ).toEqual(expected)
+    expect(screen.getByRole('textbox', { name: 'Search' })).toHaveValue(
+      expected.q,
+    )
+  })
+}
+
+describe('Reviewer applications route', () => {
+  it('synchronizes direct navigation and back/forward history, including empty search', async () => {
+    const { router } = renderRoute(
+      '/reviewer/applications?q=Ada&status=all&page=1',
+    )
+    await expectRouteSearch(router, { q: 'Ada', status: 'all', page: '1' })
+    await act(() =>
+      router.navigate('/reviewer/applications?q=&status=in-review&page=0'),
+    )
+    await expectRouteSearch(router, { q: '', status: 'in-review', page: '0' })
+    await act(() => router.navigate(-1))
+    await expectRouteSearch(router, { q: 'Ada', status: 'all', page: '1' })
+    await act(() => router.navigate(1))
+    await expectRouteSearch(router, { q: '', status: 'in-review', page: '0' })
+  })
+
+  it('keeps the complete draft and focus while navigation is pending', async () => {
+    const user = userEvent.setup()
+    let pending = Promise.resolve()
+    const { router } = renderRoute(
+      '/reviewer/applications?q=&status=all&page=2',
+      () => pending,
+    )
+    await expectRouteSearch(router, { q: '', status: 'all', page: '2' })
+    let release!: () => void
+    pending = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const input = screen.getByRole('textbox', { name: 'Search' })
+    await user.type(input, 'Ada')
+    expect(input).toHaveValue('Ada')
+    expect(input).toHaveFocus()
+    expect(router.state.navigation.state).toBe('loading')
+    await act(async () => {
+      release()
+      await pending
+    })
+    await expectRouteSearch(router, { q: 'Ada', status: 'all', page: '0' })
+    expect(screen.getByRole('textbox', { name: 'Search' })).toBe(input)
+    expect(input).toHaveFocus()
+    await user.type(input, ' Lovelace')
+    await expectRouteSearch(router, {
+      q: 'Ada Lovelace',
+      status: 'all',
+      page: '0',
+    })
+  })
+
+  it('resets pagination for search and status, and preserves filters when paging', async () => {
+    const user = userEvent.setup()
+    const { router } = renderRoute(
+      '/reviewer/applications?q=Ad&status=all&page=2',
+    )
+    await expectRouteSearch(router, { q: 'Ad', status: 'all', page: '2' })
+    await user.type(screen.getByRole('textbox', { name: 'Search' }), 'a')
+    await expectRouteSearch(router, { q: 'Ada', status: 'all', page: '0' })
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    await expectRouteSearch(router, { q: 'Ada', status: 'all', page: '1' })
+    await user.click(
+      screen.getByRole('button', { name: 'All statuses Status' }),
+    )
+    await user.click(screen.getByRole('option', { name: 'In review' }))
+    await expectRouteSearch(router, {
+      q: 'Ada',
+      status: 'in-review',
+      page: '0',
+    })
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    await expectRouteSearch(router, {
+      q: 'Ada',
+      status: 'in-review',
+      page: '1',
+    })
+    await user.click(screen.getByRole('button', { name: 'Previous page' }))
+    await expectRouteSearch(router, {
+      q: 'Ada',
+      status: 'in-review',
+      page: '0',
+    })
+  })
+})
 
 describe('Reviewer applications overview', () => {
   it('validates route search values and supplies first-page defaults', () => {

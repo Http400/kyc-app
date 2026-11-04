@@ -128,6 +128,58 @@ npm run test:e2e --workspace frontend
 
 Run frontend tests directly with `npm test --workspace frontend`. Run the root UI library quality checks with `npm run quality`.
 
+## Continuous integration
+
+[The CI workflow](.github/workflows/ci.yml) runs on pull requests targeting `main`
+and pushes to `main`, with two independent Ubuntu jobs:
+
+- **Quality and builds:** lint, dependency boundaries, design-system checks,
+  frontend typecheck/unit tests/build, and Storybook build.
+- **Browser tests:** frontend E2E against the supplied Java backend, then the full
+  Storybook preview and Docs browser check. Both use Chromium.
+
+Each job installs with Node 26 and `npm ci`. The browser job also installs
+Temurin JDK 25 and Chromium's Linux dependencies. No repository secrets are
+required. Dependencies are cached, but each run installs from the lockfile.
+
+Run the same checks locally from the repository root with Node 26 and JDK 25
+configured as described above:
+
+```sh
+npm ci
+npm run quality
+npm run typecheck --workspace @kyc/frontend
+npm run test --workspace @kyc/frontend
+npm run build --workspace @kyc/frontend
+npm run build-storybook
+npx --no-install playwright install --with-deps chromium
+npm run test:e2e --workspace @kyc/frontend
+node scripts/test-storybook.mjs
+```
+
+`npm run quality` builds the design system before the frontend consumes it. When
+running only browser checks, run `npm run build` first. Required check failures
+fail CI; log capture preserves their exit codes. Storybook checks still run after
+a frontend E2E failure if browser setup succeeded. Available browser logs and
+Playwright failure traces are uploaded as `browser-failure-diagnostics`, retained
+for seven days. Download traces and open them with `npx playwright show-trace`.
+
+The quality job also runs `npm audit --json` and
+`npm audit --omit=dev --json`. Counts appear in the job summary, and full JSON
+reports are uploaded as `dependency-audits` for seven days. Findings are
+informational; missing, invalid or failed report collection fails the audit step.
+The accepted findings and retained `legacy-peer-deps=true` installation policy
+are documented in [IMPROVEMENT-001](tickets/IMPROVEMENT-001-fix-npm-audit-vulnerabilities.md).
+A passing CI run does not mean a zero-vulnerability audit or successful strict
+peer validation. Newly reported findings still require review.
+
+To validate workflow syntax and GitHub expressions locally, install
+[actionlint](https://github.com/rhysd/actionlint/blob/main/docs/install.md) and run
+`actionlint .github/workflows/ci.yml`. Installing ShellCheck additionally enables
+actionlint's embedded shell checks. Local validation does not replace a successful
+GitHub-hosted run; the first hosted run must be verified before closing
+[IMPROVEMENT-004](tickets/IMPROVEMENT-004-add-github-actions-ci.md).
+
 ## Local data
 
 The development database is stored at `backend/data/identity-access.db`. Remove this local database file only when you want to reset local application data.

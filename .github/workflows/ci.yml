@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  quality:
+    name: Quality and builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          cache: npm
+      - name: Install dependencies
+        id: install
+        run: npm ci
+      - name: Check lint, boundaries and design system
+        run: npm run quality
+      - name: Typecheck frontend
+        run: npm run typecheck --workspace @kyc/frontend
+      - name: Test frontend
+        run: npm run test --workspace @kyc/frontend
+      - name: Build frontend
+        run: npm run build --workspace @kyc/frontend
+      - name: Build Storybook
+        run: npm run build-storybook
+      - name: Collect informational dependency audits
+        id: audit
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          AUDIT_DIRECTORY: ${{ runner.temp }}/dependency-audits
+        run: |
+          mkdir -p "$AUDIT_DIRECTORY"
+          {
+            echo '### Dependency audits (informational)'
+            echo 'IMPROVEMENT-001 accepts residual findings and the legacy-peer-deps installation policy for this assessment.'
+            echo 'These reports are not a zero-vulnerability gate. Collection errors still fail this step.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          for scope in full production; do
+            args=()
+            if [[ "$scope" == production ]]; then args+=(--omit=dev); fi
+            audit_status=0
+            npm audit --json "${args[@]}" > "$AUDIT_DIRECTORY/$scope.json" || audit_status=$?
+            if [[ "$audit_status" -gt 1 ]] || ! jq -e '
+              .error == null and
+              (.metadata.vulnerabilities | type == "object") and
+              (.metadata.vulnerabilities.total | type == "number")
+            ' "$AUDIT_DIRECTORY/$scope.json" > /dev/null; then
+              echo "::error::Could not collect a valid $scope audit report (exit $audit_status)."
+              echo "- $scope: collection failed; inspect the audit artifact and logs." >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            else
+              jq -r --arg scope "$scope" '
+                .metadata.vulnerabilities |
+                "- \($scope): \(.total) affected packages (critical: \(.critical), high: \(.high), moderate: \(.moderate), low: \(.low), info: \(.info))."
+              ' "$AUDIT_DIRECTORY/$scope.json" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          exit "$failed"
+      - name: Upload audit reports
+        if:
+          ${{ !cancelled() && (steps.audit.outcome == 'success' ||
+          steps.audit.outcome == 'failure') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-audits
+          path: ${{ runner.temp }}/dependency-audits/
+          retention-days: 7
+          if-no-files-found: error
+
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Install dependencies
+        run: npm ci
+      - name: Build design system
+        run: npm run build
+      - name: Install Chromium and Linux dependencies
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Prepare browser logs
+        id: prepare
+        run: mkdir -p "$RUNNER_TEMP/browser-diagnostics"
+      - name: Test frontend in Chromium
+        run:
+          npm run test:e2e --workspace @kyc/frontend 2>&1 | tee
+          "$RUNNER_TEMP/browser-diagnostics/frontend-e2e.log"
+      - name: Test Storybook previews and Docs
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run:
+          node scripts/test-storybook.mjs 2>&1 | tee
+          "$RUNNER_TEMP/browser-diagnostics/storybook.log"
+      - name: Upload browser failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-failure-diagnostics
+          path: |
+            ${{ runner.temp }}/browser-diagnostics/
+            frontend/test-results/
+          retention-days: 7
+          if-no-files-found: warn

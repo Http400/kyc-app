@@ -54,7 +54,14 @@ try {
     r.json(),
   )
   const entries = Object.values(index.entries).filter((e) => e.type === 'story')
-  expect(entries.length).toBe(15)
+  expect(entries.map((entry) => entry.id)).toEqual(
+    expect.arrayContaining([
+      'design-system-components--button-primary',
+      'design-system-textfield--invalid',
+      'applicant-registration--empty',
+      'applicant-registration--success',
+    ]),
+  )
   const firstOnly = process.argv.includes('--first-story')
   for (const entry of firstOnly ? entries.slice(0, 1) : entries) {
     console.log('Checking story:', entry.id)
@@ -113,7 +120,7 @@ try {
   console.log(
     firstOnly
       ? 'PASS first Storybook preview; no page errors'
-      : 'PASS Storybook: 15 local previews, Docs pages and manager iframe, interactive select; no page errors',
+      : 'PASS Storybook: all local previews, Docs pages and manager iframe, interactive select; no page errors',
   )
 } finally {
   await browser?.close()

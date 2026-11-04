@@ -10,6 +10,7 @@ import {
   Cell,
   Column,
   Form as AriaForm,
+  FieldError,
   Group,
   Input,
   Label,
@@ -221,6 +222,7 @@ export function TextField({
     <AriaTextField
       id={id ?? generatedId}
       isInvalid={error}
+      isRequired={props.required}
       isDisabled={props.disabled}
       className={[styles.textField, fullWidth && styles.fullWidth, className]
         .filter(Boolean)
@@ -232,14 +234,14 @@ export function TextField({
         ref={inputRef}
         className={[styles.input, inputClassName].filter(Boolean).join(' ')}
       />
-      {Boolean(helperText) && (
-        <Text
-          slot={error ? 'errorMessage' : 'description'}
-          className={styles.description}
-        >
-          {helperText}
-        </Text>
-      )}
+      {Boolean(helperText) &&
+        (error ? (
+          <FieldError className={styles.description}>{helperText}</FieldError>
+        ) : (
+          <Text slot="description" className={styles.description}>
+            {helperText}
+          </Text>
+        ))}
     </AriaTextField>
   )
 }

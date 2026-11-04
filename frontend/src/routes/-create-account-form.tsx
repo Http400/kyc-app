@@ -1,157 +1,93 @@
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  Link,
-  Stack,
-  TextField,
-  Typography,
-} from '@kyc/ui'
-import { useEffect, useRef, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
 
+import {
+  ApplicantRegistration,
+  type RegistrationErrors,
+  type RegistrationValues,
+} from './-applicant-registration'
+import {
+  registerApplicant,
+  RegistrationFailure,
+  validateRegistration,
+} from './-registration'
 import { accountAccessHref } from './-return-target'
-import styles from './account-access.module.css'
 
 export interface CreateAccountFormProps {
-  onNavigate?: (href: string) => void
   returnTo?: string
 }
-
-const passwordGuidance =
-  'Use at least six characters, including one uppercase letter and one special character.'
-
-export function CreateAccountForm({
-  onNavigate,
-  returnTo,
-}: CreateAccountFormProps) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string>()
-  const [emailError, setEmailError] = useState<string>()
-  const [passwordError, setPasswordError] = useState<string>()
-  const [successMessage, setSuccessMessage] = useState<string>()
-  const emailInput = useRef<HTMLInputElement>(null)
-  const passwordInput = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (emailError) {
-      emailInput.current?.focus()
-    } else if (passwordError) {
-      passwordInput.current?.focus()
+const emptyValues: RegistrationValues = {
+  email: '',
+  password: '',
+  confirmation: '',
+}
+export function CreateAccountForm({ returnTo }: CreateAccountFormProps) {
+  const [values, setValues] = useState(emptyValues)
+  const [errors, setErrors] = useState<RegistrationErrors>({})
+  const [message, setMessage] = useState<string>()
+  const [feedbackVersion, setFeedbackVersion] = useState(0)
+  const submitted = useRef(false)
+  const pending = useRef(false)
+  const mutation = useMutation({ mutationFn: registerApplicant, retry: false })
+  async function submit() {
+    if (pending.current || mutation.isSuccess) return
+    submitted.current = true
+    const validation = validateRegistration(values)
+    setErrors(validation)
+    setMessage(undefined)
+    if (Object.keys(validation).length) {
+      setFeedbackVersion((version) => version + 1)
+      return
     }
-  }, [emailError, passwordError])
-
-  async function submit(): Promise<void> {
-    setError(undefined)
-    setEmailError(undefined)
-    setPasswordError(undefined)
-    setSuccessMessage(undefined)
-
+    pending.current = true
     try {
-      setPassword('')
-      setSuccessMessage(
-        'Account form is ready. Sign-in is available for this prototype.',
+      await mutation.mutateAsync(values)
+      setValues(emptyValues)
+    } catch (error) {
+      setErrors(error instanceof RegistrationFailure ? error.fields : {})
+      setMessage(
+        error instanceof RegistrationFailure
+          ? error.message
+          : 'We could not create your account. Please try again.',
       )
-    } catch {
-      setError('Account form could not be completed.')
+    } finally {
+      pending.current = false
+      setFeedbackVersion((version) => version + 1)
     }
   }
-
+  let state: 'idle' | 'pending' | 'success' = 'idle'
+  if (mutation.isPending) state = 'pending'
+  if (mutation.isSuccess) state = 'success'
   return (
-    <main className={styles.page}>
-      <Card className={styles.card}>
-        <CardContent className={styles.cardContent}>
-          <Stack
-            component="form"
-            className={styles.form}
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-            spacing={3}
-          >
-            <Stack spacing={1}>
-              <Typography component="h1" variant="heading">
-                Create your account
-              </Typography>
-              <Typography tone="muted">
-                Create credentials to begin your KYC application.
-              </Typography>
-            </Stack>
-            {(error ?? emailError ?? passwordError) ? (
-              <Alert aria-live="assertive" role="alert" severity="error">
-                {error ?? emailError ?? passwordError}
-              </Alert>
-            ) : null}
-            {successMessage ? (
-              <Alert aria-live="polite" role="status" severity="success">
-                {successMessage}
-              </Alert>
-            ) : null}
-            <TextField
-              autoComplete="email"
-              error={Boolean(emailError)}
-              fullWidth
-              helperText={emailError}
-              id="applicant-email"
-              inputRef={emailInput}
-              label="Email address"
-              name="email"
-              onChange={(event) => {
-                setEmail(event.target.value)
-                setEmailError(undefined)
-              }}
-              required
-              type="email"
-              value={email}
-            />
-            <TextField
-              autoComplete="new-password"
-              error={Boolean(passwordError)}
-              fullWidth
-              helperText={passwordError ?? passwordGuidance}
-              id="applicant-password"
-              inputRef={passwordInput}
-              label="Password"
-              name="password"
-              onChange={(event) => {
-                setPassword(event.target.value)
-                setPasswordError(undefined)
-              }}
-              required
-              type="password"
-              value={password}
-            />
-            <Button
-              className={styles.submit}
-              fullWidth
-              size="large"
-              type="submit"
-            >
-              Create account
-            </Button>
-            <Typography
-              className={styles.footer}
-              align="center"
-              variant="caption"
-            >
-              <span>Already have an account? </span>
-              <Link
-                href={accountAccessHref('/sign-in', returnTo)}
-                onClick={(event) => {
-                  if (onNavigate) {
-                    event.preventDefault()
-                    onNavigate(accountAccessHref('/sign-in', returnTo))
-                  }
-                }}
-              >
-                Sign in
-              </Link>
-            </Typography>
-          </Stack>
-        </CardContent>
-      </Card>
-    </main>
+    <ApplicantRegistration
+      values={values}
+      errors={errors}
+      message={message}
+      feedbackVersion={feedbackVersion}
+      state={state}
+      signInHref={accountAccessHref('/sign-in', returnTo)}
+      onSubmit={() => {
+        void submit()
+      }}
+      onChange={(field, value) => {
+        const next = { ...values, [field]: value }
+        setValues(next)
+        setMessage(undefined)
+        if (submitted.current) {
+          const validation = validateRegistration(next)
+          setErrors((previous) => {
+            const updated = { ...previous }
+            delete updated[field]
+            if (validation[field]) updated[field] = validation[field]
+            if (field === 'password') {
+              delete updated.confirmation
+              if (validation.confirmation)
+                updated.confirmation = validation.confirmation
+            }
+            return updated
+          })
+        }
+      }}
+    />
   )
 }

@@ -194,3 +194,12 @@ export async function uploadEvidence(id: string, file: File) {
     201,
   )
 }
+export async function logoutApplicant() {
+  try {
+    const response = await request('applicant-sessions/current', 'DELETE')
+    if (response.status !== 204)
+      throw new DraftFailure('Logout was not confirmed. Try again.')
+  } catch (error) {
+    if (!(error instanceof DraftFailure && error.status === 401)) throw error
+  }
+}

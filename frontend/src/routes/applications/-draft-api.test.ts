@@ -6,6 +6,7 @@ import { server } from '../../test/server'
 import {
   currentApplication,
   loadDraft,
+  logoutApplicant,
   saveDraft,
   uploadEvidence,
 } from './-draft-api'
@@ -109,4 +110,20 @@ it('uploads multipart evidence and rejects invalid files', async () => {
   await expect(
     uploadEvidence(id, new File(['text'], 'id.txt', { type: 'text/plain' })),
   ).rejects.toThrow('JPG or PNG')
+})
+it('treats expired logout as signed out, but exposes other failures', async () => {
+  server.use(
+    http.delete(
+      '/api/v1/applicant-sessions/current',
+      () => new HttpResponse(null, { status: 401 }),
+    ),
+  )
+  await logoutApplicant()
+  server.use(
+    http.delete(
+      '/api/v1/applicant-sessions/current',
+      () => new HttpResponse(null, { status: 503 }),
+    ),
+  )
+  await expect(logoutApplicant()).rejects.toThrow('failed')
 })

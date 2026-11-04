@@ -214,3 +214,25 @@ it('keeps focus while correcting validation errors with the keyboard', async () 
   await user.keyboard('Secure!1')
   expect(screen.getByLabelText('Password')).toHaveValue('Secure!1')
 })
+
+it('removes prior applicant data before navigating after login', async () => {
+  const client = new QueryClient()
+  client.setQueryData(['applicant', 'previous-id', 'form'], {
+    name: 'Previous applicant',
+  })
+  const onSuccess = vi.fn(() => {
+    expect(
+      client.getQueryData(['applicant', 'previous-id', 'form']),
+    ).toBeUndefined()
+  })
+  server.use(http.post(endpoint, () => success()))
+  render(
+    <QueryClientProvider client={client}>
+      <SignInForm onSuccess={onSuccess} />
+    </QueryClientProvider>,
+  )
+  const user = userEvent.setup()
+  await fill(user)
+  await user.click(submit())
+  await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(href))
+})

@@ -16,7 +16,7 @@ import {
   type Step,
   uploadEvidence,
 } from './-draft-api'
-import { Failure } from './-draft-controls'
+import { Failure, Logout } from './-draft-controls'
 
 export function DraftPage({ id, step }: { id: string; step: Step }) {
   const query = useQuery({
@@ -55,6 +55,8 @@ function DraftForm({
   const [answers, setAnswers] = useState<Answers>(initial.answers)
   const [file, setFile] = useState<File>()
   const [pending, setPending] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const busy = pending || loggingOut
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<unknown>()
   const [partial, setPartial] = useState('')
@@ -122,7 +124,7 @@ function DraftForm({
     }
   }
   async function save(advance: boolean) {
-    if (lock.current) return
+    if (lock.current || loggingOut) return
     lock.current = true
     setPending(true)
     setSaved(false)
@@ -173,6 +175,13 @@ function DraftForm({
     <main className={styles.page}>
       {dialog}
       <div className={styles.stepContent}>
+        <Logout
+          disabled={busy}
+          onPendingChange={setLoggingOut}
+          beforeLogout={async () =>
+            !dirty || (await confirm('Discard unsaved changes and log out?'))
+          }
+        />
         <Typography component="h1" variant="heading">
           {step === 'personal-details'
             ? 'Personal details'
@@ -188,7 +197,7 @@ function DraftForm({
           <div ref={feedback} tabIndex={-1}>
             <Failure error={error} />
             {error instanceof DraftFailure && error.status === 409 ? (
-              <Button isDisabled={pending} onClick={() => void reload()}>
+              <Button isDisabled={busy} onClick={() => void reload()}>
                 Reload saved form
               </Button>
             ) : null}
@@ -197,7 +206,7 @@ function DraftForm({
         <Stack
           component="form"
           spacing={2}
-          aria-busy={pending}
+          aria-busy={busy}
           onSubmit={(event) => {
             event.preventDefault()
             void save(true)
@@ -209,7 +218,7 @@ function DraftForm({
               name={key}
               label={`${label} (required)`}
               required
-              disabled={pending}
+              disabled={busy}
               value={
                 typeof answers[key] === 'string' ? (answers[key] as string) : ''
               }
@@ -221,7 +230,7 @@ function DraftForm({
               <input
                 type="checkbox"
                 required
-                disabled={pending}
+                disabled={busy}
                 checked={answers.consentConfirmed === true}
                 onChange={(event) =>
                   edit('consentConfirmed', event.target.checked)
@@ -245,7 +254,7 @@ function DraftForm({
                 type="file"
                 accept="image/jpeg,image/png"
                 required={!draft.documentEvidence.present}
-                disabled={pending}
+                disabled={busy}
                 onChange={(event) => {
                   setFile(event.target.files?.[0])
                   setSaved(false)
@@ -257,7 +266,7 @@ function DraftForm({
             <Button
               type="button"
               variant="quiet"
-              isDisabled={pending}
+              isDisabled={busy}
               onClick={() =>
                 void navigate(
                   step === 'personal-details'
@@ -270,12 +279,12 @@ function DraftForm({
             </Button>
             <Button
               type="button"
-              isDisabled={pending}
+              isDisabled={busy}
               onClick={() => void save(false)}
             >
               Save
             </Button>
-            <Button type="submit" isDisabled={pending}>
+            <Button type="submit" isDisabled={busy}>
               {step === 'personal-details' ? 'Continue' : 'Save and review'}
             </Button>
           </Stack>

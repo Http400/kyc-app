@@ -81,6 +81,22 @@ it('retains conflicting edits until explicit reload confirmation', async () => {
   await user.click(screen.getByRole('button', { name: 'Discard changes' }))
   await waitFor(() => expect(name).toHaveValue('Ada'))
 })
+it('allows canceling logout before revoking the session', async () => {
+  let calls = 0
+  server.use(
+    http.delete('/api/v1/applicant-sessions/current', () => {
+      calls++
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const user = setup()
+  await user.type(await screen.findByLabelText('Name (required)'), ' edited')
+  await user.click(screen.getByRole('button', { name: 'Log out' }))
+  await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+  expect(calls).toBe(0)
+  expect(screen.getByLabelText('Name (required)')).toHaveValue('Ada edited')
+})
+
 it.each([401, 422])(
   'keeps entered answers when the API returns %s',
   async (status) => {
@@ -116,6 +132,7 @@ it('prevents duplicate requests and exposes pending outside the busy form', asyn
   await user.click(screen.getByRole('button', { name: 'Save' }))
   try {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeDisabled()
     expect(screen.getByRole('status').closest('[aria-busy="true"]')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(calls).toBe(1)

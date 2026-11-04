@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router'
 
 import { ApplicantJourneyPresentation } from './-applicant-journey-presentation'
 import { currentApplication } from './-draft-api'
-import { Failure } from './-draft-controls'
+import { Failure, Logout } from './-draft-controls'
 
 export default function CurrentApplicationJourneyPage() {
   const navigate = useNavigate()
@@ -46,6 +46,7 @@ export default function CurrentApplicationJourneyPage() {
     )
   return (
     <>
+      <Logout disabled={pending} />
       {error ? <Failure error={error} /> : null}
       <p role="status">{pending ? 'Opening your application…' : ''}</p>
       <ApplicantJourneyPresentation

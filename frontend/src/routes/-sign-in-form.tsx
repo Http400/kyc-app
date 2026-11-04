@@ -8,7 +8,7 @@ import {
   TextField,
   Typography,
 } from '@kyc/ui'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { loginApplicant, LoginFailure, validateLogin } from './-login'
@@ -26,6 +26,7 @@ export function SignInForm({
   returnTo,
   onSuccess,
 }: SignInFormProps) {
+  const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string>()
@@ -67,6 +68,8 @@ export function SignInForm({
       setIsComplete(true)
       setPassword('')
       mutation.reset()
+      await queryClient.cancelQueries({ queryKey: ['applicant'] })
+      queryClient.removeQueries({ queryKey: ['applicant'] })
       onSuccess(destination)
     } catch (cause) {
       setError(

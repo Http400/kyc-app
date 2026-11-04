@@ -58,6 +58,15 @@ export function ApplicantRegistration({
     <main className={styles.page}>
       <Card className={styles.card}>
         <CardContent className={styles.cardContent}>
+          <div
+            className="sr-only"
+            role="status"
+            aria-label="Registration progress"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {state === 'pending' ? 'Creating your account. Please wait.' : ''}
+          </div>
           {state === 'success' ? (
             <Stack spacing={3}>
               <Typography component="h1" variant="heading">
@@ -137,7 +146,9 @@ export function ApplicantRegistration({
                   {state === 'pending' ? 'Creating account…' : 'Create account'}
                 </Button>
                 {state === 'pending' && (
-                  <Alert>Creating your account. Please wait.</Alert>
+                  <Alert aria-hidden="true">
+                    Creating your account. Please wait.
+                  </Alert>
                 )}
                 <Typography
                   className={styles.footer}

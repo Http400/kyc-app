@@ -85,7 +85,7 @@ describe('Applicant registration', () => {
     expect(
       screen.queryByLabelText('Password', { exact: true }),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('status').parentElement).toHaveFocus()
+    expect(screen.getByRole('status', { name: '' }).parentElement).toHaveFocus()
     expect((await axe(document.body)).violations).toEqual([])
   })
   it('maps multiple API field errors and allows correction and retry', async () => {
@@ -294,7 +294,7 @@ describe('Applicant registration', () => {
       'Email rejected. Use another address.',
     )
   })
-  it('prevents duplicate requests while pending', async () => {
+  it('keeps progress outside the busy form through submission and success and prevents duplicate requests', async () => {
     let release!: () => void
     const held = new Promise<void>((resolve) => {
       release = resolve
@@ -308,13 +308,56 @@ describe('Applicant registration', () => {
       }),
     )
     const user = setup()
+    const progress = screen.getByRole('status', {
+      name: 'Registration progress',
+    })
+    expect(progress).toBeEmptyDOMElement()
+    expect(progress).toHaveAttribute('aria-live', 'polite')
+    expect(progress).toHaveAttribute('aria-atomic', 'true')
     await fill(user)
     await user.dblClick(screen.getByRole('button', { name: 'Create account' }))
+    expect(screen.getByRole('status')).toBe(progress)
+    expect(progress).toHaveTextContent('Creating your account. Please wait.')
+    expect(progress.closest('[aria-busy="true"]')).toBeNull()
     expect(
       screen.getByRole('button', { name: 'Creating account…' }),
     ).toBeDisabled()
     await waitFor(() => expect(calls).toBe(1))
     release()
     await screen.findByRole('heading', { name: 'Account created' })
+    expect(screen.getByRole('status', { name: 'Registration progress' })).toBe(
+      progress,
+    )
+    expect(progress).toBeEmptyDOMElement()
+  })
+  it('clears and reuses the progress region after failure and retry', async () => {
+    let release!: () => void
+    const user = setup()
+    const progress = screen.getByRole('status', {
+      name: 'Registration progress',
+    })
+    expect(progress).toBeEmptyDOMElement()
+    await fill(user)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const requestStarted = vi.fn()
+      server.use(
+        http.post(endpoint, async () => {
+          await new Promise<void>((resolve) => {
+            release = resolve
+            requestStarted()
+          })
+          return new HttpResponse(null, { status: 429 })
+        }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Create account' }))
+      await waitFor(() => expect(requestStarted).toHaveBeenCalledOnce())
+      expect(screen.getByRole('status')).toBe(progress)
+      expect(progress).toHaveTextContent('Creating your account. Please wait.')
+      expect(progress.closest('[aria-busy="true"]')).toBeNull()
+      release()
+      await screen.findByRole('alert')
+      expect(screen.getByRole('status')).toBe(progress)
+      expect(progress).toBeEmptyDOMElement()
+    }
   })
 })

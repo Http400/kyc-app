@@ -55,7 +55,9 @@ for (const viewport of [
     await expect(
       page.getByRole('heading', { name: 'Account created' }),
     ).toBeVisible()
-    await expect(page.getByRole('status').locator('..')).toBeFocused()
+    await expect(
+      page.getByRole('status', { name: '', exact: true }).locator('..'),
+    ).toBeFocused()
     await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0)
     expect(
       (await context.cookies()).some((cookie) =>
@@ -115,6 +117,8 @@ test('pending registration exposes busy state and recovers from throttling', asy
     })
   })
   await page.goto('/create-account')
+  const progress = page.getByRole('status', { name: 'Registration progress' })
+  await expect(progress).toBeEmpty()
   await page.getByLabel('Email address').fill('pending@example.com')
   await page.getByLabel('Password', { exact: true }).fill('Secure!1')
   await page.getByLabel('Confirm password').fill('Secure!1')
@@ -124,9 +128,13 @@ test('pending registration exposes busy state and recovers from throttling', asy
     await expect(
       page.getByRole('button', { name: 'Creating account…' }),
     ).toBeDisabled()
-    await expect(page.getByRole('status')).toHaveText(
-      'Creating your account. Please wait.',
-    )
+    await expect(progress).toHaveText('Creating your account. Please wait.')
+    await expect(page.getByRole('status')).toHaveCount(1)
+    expect(
+      await progress.evaluate((element) =>
+        Boolean(element.closest('[aria-busy="true"]')),
+      ),
+    ).toBe(false)
     await page.screenshot({
       path: testInfo.outputPath('registration-pending.png'),
       fullPage: true,
@@ -135,6 +143,7 @@ test('pending registration exposes busy state and recovers from throttling', asy
     release()
   }
   await expect(page.getByRole('alert')).toContainText('30 seconds')
+  await expect(progress).toBeEmpty()
   await expect(page.getByRole('alert').locator('..')).toBeFocused()
   await expect(page.locator('form')).toHaveAttribute('aria-busy', 'false')
   await expect(

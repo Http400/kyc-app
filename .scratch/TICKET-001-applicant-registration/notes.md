@@ -107,3 +107,81 @@ no branch was pushed and no hosted CI run was triggered.
 
 Paused at the step-3 checkpoint with the E2E test and tracking updates unstaged and
 uncommitted. TICKET-001 is marked done based on the acceptance evidence above.
+
+## Code review follow-up — 2026-11-04
+
+Reviewed `git diff main...HEAD` using the code-review skill with independent
+Standards and Spec reviewers. Review baseline: `fcd266f`; reviewed HEAD: `a1303a7`.
+Standards reported one P2 finding; Spec reported no findings. The review did not
+modify implementation files or rerun tests.
+
+### P2: Pending registration status may not be announced
+
+The pending message in `frontend/src/routes/-applicant-registration.tsx` (reviewed
+lines 139–140) is inside the form marked `aria-busy` (line 80). Assistive technology
+may defer updates within that subtree until it is no longer busy. Because the
+message disappears when the request finishes, an Applicant may never hear that
+submission is underway.
+
+This concerns the WCAG requirement in `README.md` line 19. The inference follows
+the [WAI-ARIA aria-busy definition](https://www.w3.org/TR/wai-aria-1.2/#aria-busy).
+Confidence is medium: this is a code-based accessibility risk, not a reproduced
+screen-reader failure. Existing tests verify DOM text and attributes, not speech.
+
+### Agreed fix plan
+
+- Add a persistent, visually hidden `role="status"` region outside the form,
+  using the existing `sr-only` utility. Name it “Registration progress” and use
+  polite, atomic announcements.
+- Mount the region on initial render. Populate its text during submission and
+  clear it when the request finishes; keep the element mounted throughout.
+- Preserve the visible pending message and layout, but hide that duplicate
+  message from assistive technology so progress has one accessible announcement.
+- Preserve the form's busy state, disabled controls, and success/error focus
+  behavior. No component-prop or API changes are needed.
+
+### Verification and stopping point
+
+- Add a regression test asserting that the same live-region element exists before,
+  during, and after submission and has no busy ancestor.
+- Cover success, failure, and retry transitions. Update status queries to
+  distinguish the progress region from the success confirmation.
+- Run lint, frontend typecheck/tests, registration browser tests, and Storybook
+  checks. Record the results here after implementation.
+- Automated checks establish markup and update behavior. Actual screen-reader
+  speech remains a separate manual check and must not be claimed as verified.
+- Pause after the fix and verification, leaving changes unstaged and uncommitted.
+
+The user requested that this record be saved first. Only documentation has been
+updated at this checkpoint; the fix and its verification have not started.
+
+### Follow-up implementation and verification — 2026-11-04
+
+Implemented the agreed fix in `ApplicantRegistration`: a persistent, visually
+hidden progress status sits outside the busy form, with a descriptive accessible
+name and polite, atomic updates. The visible pending Alert remains in place and
+is hidden from assistive technology to avoid duplicate announcements. Existing
+success/error focus behavior and disabled controls are preserved.
+
+Integration regressions verify the same live-region element before submission,
+during pending, and after success or failure, including a second submission after
+failure. They check that pending progress has no busy ancestor and that only one
+progress status is exposed. Browser coverage checks the same accessible structure
+and clearing after throttling; success assertions distinguish the confirmation
+from the persistent progress region.
+
+Verification passed:
+
+- `npm run format` and `npm run lint`.
+- `npm run typecheck --workspace @kyc/frontend`.
+- `npm test --workspace @kyc/frontend`: all 45 tests passed.
+- `npm run test:e2e --workspace @kyc/frontend -- registration.spec.ts`: all three
+  registration browser tests passed, including mobile and desktop backend flows.
+- `node scripts/test-storybook.mjs`: all 29 previews and three Docs pages,
+  manager iframe, and interactive select passed without browser page errors.
+- `git diff --check`.
+
+The browser runners initially could not bind ports inside the sandbox; both
+passed when rerun with approved escalation. Actual screen-reader speech has not
+been manually verified. TICKET-001 is marked done again following the automated
+regression checks. Paused with changes unstaged and uncommitted.

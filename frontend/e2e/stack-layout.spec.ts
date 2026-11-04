@@ -13,7 +13,25 @@ test('application form lays out actions without forwarding style props to the DO
     }
   })
 
-  await page.goto('/applications/prototype/personal-details')
+  const id = 'b9ac53c6-7526-40eb-a637-bb18ecf434af'
+  await page.route(`**/api/v1/applicant-applications/${id}/form`, (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          type: 'applicant-application-forms',
+          id,
+          attributes: {
+            status: 'draft',
+            currentStep: 'personal-details',
+            answers: {},
+            documentEvidence: { present: false },
+            version: 0,
+          },
+        },
+      },
+    }),
+  )
+  await page.goto(`/applications/${id}/personal-details`)
 
   const actions = page
     .getByRole('button', { name: 'Continue' })

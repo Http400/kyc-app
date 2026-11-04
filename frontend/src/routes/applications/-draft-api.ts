@@ -75,10 +75,12 @@ export async function request(
       .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
       ?.slice(11)
     if (token) headers['X-XSRF-TOKEN'] = decodeURIComponent(token)
-    if (body) headers['Content-Type'] = 'application/vnd.api+json'
+    if (body && !(body instanceof FormData))
+      headers['Content-Type'] = 'application/vnd.api+json'
   }
   let encoded: BodyInit | undefined
-  if (body) encoded = JSON.stringify(body)
+  if (body instanceof FormData) encoded = body
+  else if (body) encoded = JSON.stringify(body)
   let response: Response
   try {
     response = await fetch(`/api/v1/${path}`, {
@@ -166,4 +168,29 @@ export async function saveDraft(
   if (result.data.id !== id)
     throw new DraftFailure('The server returned a different application.')
   return result.data.attributes
+}
+export async function uploadEvidence(id: string, file: File) {
+  if (
+    !['image/jpeg', 'image/png'].includes(file.type) ||
+    file.size === 0 ||
+    file.size > 10 * 1024 * 1024
+  )
+    throw new DraftFailure('Choose a JPG or PNG image no larger than 10 MiB.')
+  const body = new FormData()
+  body.append('file', file)
+  await parse(
+    await request(
+      `applicant-applications/${id}/document-evidence`,
+      'POST',
+      body,
+    ),
+    z.object({
+      data: z.object({
+        type: z.literal('applicant-application-document-evidence'),
+        id: z.literal(id),
+        attributes: z.object({ present: z.literal(true) }),
+      }),
+    }),
+    201,
+  )
 }

@@ -14,6 +14,7 @@ import {
   loadDraft,
   saveDraft,
   type Step,
+  uploadEvidence,
 } from './-draft-api'
 import { Failure } from './-draft-controls'
 
@@ -52,13 +53,18 @@ function DraftForm({
   const { confirm, dialog } = useConfirmDiscard()
   const [draft, setDraft] = useState(initial)
   const [answers, setAnswers] = useState<Answers>(initial.answers)
+  const [file, setFile] = useState<File>()
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<unknown>()
+  const [partial, setPartial] = useState('')
+  const [refreshNeeded, setRefreshNeeded] = useState(false)
   const lock = useRef(false)
   const leaving = useRef(false)
+  const picker = useRef<HTMLInputElement>(null)
   const feedback = useRef<HTMLDivElement>(null)
-  const dirty = JSON.stringify(answers) !== JSON.stringify(draft.answers)
+  const dirty =
+    Boolean(file) || JSON.stringify(answers) !== JSON.stringify(draft.answers)
   const blocker = useBlocker(() => !leaving.current && (dirty || lock.current))
   useEffect(() => {
     if (blocker.state !== 'blocked') return
@@ -102,8 +108,12 @@ function DraftForm({
       const result = await loadDraft(id)
       setDraft(result)
       setAnswers(result.answers)
+      setFile(undefined)
+      if (picker.current) picker.current.value = ''
       setError(undefined)
+      setPartial('')
       setSaved(false)
+      setRefreshNeeded(false)
     } catch (cause) {
       setError(cause)
     } finally {
@@ -117,10 +127,30 @@ function DraftForm({
     setPending(true)
     setSaved(false)
     setError(undefined)
+    setPartial('')
+    let answersSaved = false
     try {
-      const result = await saveDraft(id, step, answers, draft.version)
+      let version = draft.version
+      if (refreshNeeded) {
+        const latest = await loadDraft(id)
+        version = latest.version
+        setDraft(latest)
+        setRefreshNeeded(false)
+      }
+      const result = await saveDraft(id, step, answers, version)
+      answersSaved = true
       setDraft(result)
       setAnswers(result.answers)
+      if (file) {
+        await uploadEvidence(id, file)
+        setFile(undefined)
+        if (picker.current) picker.current.value = ''
+        setRefreshNeeded(true)
+        const updated = await loadDraft(id)
+        setDraft(updated)
+        setAnswers(updated.answers)
+        setRefreshNeeded(false)
+      }
       setSaved(true)
       if (advance) {
         leaving.current = true
@@ -130,6 +160,10 @@ function DraftForm({
       }
     } catch (cause) {
       setError(cause)
+      if (answersSaved)
+        setPartial(
+          'Your answers were saved, but the document operation did not finish. Retry Save before continuing.',
+        )
     } finally {
       lock.current = false
       setPending(false)
@@ -149,6 +183,7 @@ function DraftForm({
             ? 'Saving or refreshing your draft…'
             : (saved && 'Your progress was saved.') || ''}
         </p>
+        {partial ? <p>{partial}</p> : null}
         {error ? (
           <div ref={feedback} tabIndex={-1}>
             <Failure error={error} />
@@ -201,7 +236,21 @@ function DraftForm({
                   ? 'Document evidence is saved. You may replace it.'
                   : 'No document evidence saved yet.'}
               </p>
-              <p>Document upload will be available in the next increment.</p>
+              <label htmlFor="document-evidence">
+                Document evidence (JPG or PNG, up to 10 MiB)
+              </label>
+              <input
+                ref={picker}
+                id="document-evidence"
+                type="file"
+                accept="image/jpeg,image/png"
+                required={!draft.documentEvidence.present}
+                disabled={pending}
+                onChange={(event) => {
+                  setFile(event.target.files?.[0])
+                  setSaved(false)
+                }}
+              />
             </>
           )}
           <Stack direction="row" spacing={2} className={styles.formActions}>

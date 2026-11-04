@@ -3,7 +3,12 @@ import { expect, it } from 'vitest'
 
 import { server } from '../../test/server'
 
-import { currentApplication, loadDraft, saveDraft } from './-draft-api'
+import {
+  currentApplication,
+  loadDraft,
+  saveDraft,
+  uploadEvidence,
+} from './-draft-api'
 
 const id = 'b9ac53c6-7526-40eb-a637-bb18ecf434af'
 const path = `/api/v1/applicant-applications/${id}/form`
@@ -80,4 +85,28 @@ it('rejects malformed success and network failures', async () => {
   await expect(loadDraft(id)).rejects.toThrow('unexpected response')
   server.use(http.get(path, () => HttpResponse.error()))
   await expect(loadDraft(id)).rejects.toThrow('connection')
+})
+it('uploads multipart evidence and rejects invalid files', async () => {
+  server.use(
+    http.post(
+      `/api/v1/applicant-applications/${id}/document-evidence`,
+      async ({ request }) => {
+        expect(await request.text()).toContain('name="file"')
+        return HttpResponse.json(
+          {
+            data: {
+              type: 'applicant-application-document-evidence',
+              id,
+              attributes: { present: true },
+            },
+          },
+          { status: 201 },
+        )
+      },
+    ),
+  )
+  await uploadEvidence(id, new File(['image'], 'id.png', { type: 'image/png' }))
+  await expect(
+    uploadEvidence(id, new File(['text'], 'id.txt', { type: 'text/plain' })),
+  ).rejects.toThrow('JPG or PNG')
 })

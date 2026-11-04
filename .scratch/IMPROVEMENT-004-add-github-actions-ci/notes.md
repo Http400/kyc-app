@@ -70,18 +70,48 @@ a committed three-dot diff alone would omit this work.
 - **Standards:** no findings against AGENTS.md, README scope and the issue-tracker
   rules; no actionable baseline code smells.
 - **Spec:** no findings. Triggers, dependencies, ordering, checks, diagnostics and
-  audit policy match the ticket. Hosted execution is pending validation, not a
-  claimed pass.
+  audit policy match the ticket. At review time, hosted execution was pending;
+  the subsequent evidence and assessment decision are recorded below.
 
-## Remaining hosted verification
+## Hosted evidence and assessment closure
 
-No GitHub Actions run was triggered or inspected for this workflow. No commit or
-push is authorized. Once publication is separately authorized, verify a run of
-this workflow on GitHub, record its URL and commit, and confirm both jobs pass.
-Inspect summaries and audit artifacts; verify failure-artifact collection on a
-controlled failing browser run. Clean Linux installation, runner provisioning,
-event triggers and actual artifact upload have not been established locally.
-The ticket remains in progress until hosted acceptance is verified.
+The user separately authorized commit `cbb660d38b68dbd49f5e05cf5112547a9f03b4e3`
+and subsequently pushed it. The user confirmed that
+[GitHub run 41821753845](https://github.com/Http400/kyc-app/actions/runs/41821753845)
+was green. The unauthenticated API returned 404 and the run page could not be
+fetched by the agent. Hosted success is therefore user-confirmed, not an
+independent inspection of the job logs. The workflow runs both quality/build and
+browser jobs, including clean npm installation and toolchain provisioning.
+
+The user downloaded the `dependency-audits` artifact and placed `full.json` and
+`production.json` in the temporary root `dependency-audits/` directory. Both files
+were inspected locally: auditReportVersion is 2, no error object is present, and
+the vulnerability metadata is valid.
+
+| Report | Affected packages | Moderate | Low | High / critical |
+| --- | --- | --- | --- | --- |
+| Full | 15 | 13 | 2 | 0 / 0 |
+| Production | 5 | 3 | 2 | 0 / 0 |
+
+Counts and affected-package sets match the saved IMPROVEMENT-001 continuation
+baseline exactly. No new advisories were found. Both reports contain the same
+two advisory sources, minimatch GHSA-g3hv-75wg-m249 and deepmerge
+GHSA-gcqx-w48m-w2h4. The five production entries are swagger-ui-react,
+swagger-client, @swagger-api/apidom-reference, minimatch and deepmerge. Existing
+audit and installation exceptions remain unchanged.
+
+The user explicitly accepted documenting the hosted browser-failure upload
+limitation for this assessment. The workflow's upload condition was reviewed,
+and local checks proved that failed commands retain logs and propagate their
+exit codes. Actual upload on a failed hosted browser run was not exercised and
+is waived, not reported as passed. A green run cannot verify that path.
+
+The reported hosted run covers a push to main. The pull-request trigger remains
+configured and statically validated; no hosted PR execution is claimed. These
+limits are recorded in the revised acceptance criteria and central status.
+
+This closure changes documentation only. The downloaded reports are unchanged
+and untracked; no additional commit or push is authorized by the closure request.
 
 ## Primary references
 

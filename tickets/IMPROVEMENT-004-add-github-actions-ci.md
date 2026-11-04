@@ -40,29 +40,37 @@ Reuse the browser coverage established in
 
 ## Acceptance criteria
 
-- [ ] Both Linux jobs run automatically on pull requests targeting `main` and
-  pushes to `main`, using Node 26 and a clean lockfile-based installation.
-- [ ] Root quality checks, frontend typecheck/unit tests/build, and Storybook
+Closure uses the user-confirmed successful push run and locally inspected audit
+artifacts. The user accepted the hosted failure-upload verification limitation
+for this assessment. Pull-request trigger configuration was validated statically;
+no successful pull-request run is claimed.
+
+- [x] Both Linux jobs are configured for pull requests targeting `main` and
+  pushes to `main`, using Node 26 and a clean lockfile-based installation. The
+  push run is user-confirmed green; the PR trigger is statically validated.
+- [x] Root quality checks, frontend typecheck/unit tests/build, and Storybook
   build pass; failures fail the corresponding job.
-- [ ] Frontend E2E tests run against the supplied backend with JDK 25 and
+- [x] Frontend E2E tests run against the supplied backend with JDK 25 and
   Chromium; failures fail the browser job.
-- [ ] The complete Storybook browser check passes, including previews and Docs;
+- [x] The complete Storybook browser check passes, including previews and Docs;
   failures fail the browser job.
-- [ ] Browser failure diagnostics are uploaded when available, even after a
-  failed test step.
-- [ ] Full and production audit results remain visible and informational,
+- [x] Browser failure uploads are configured after failed test steps, and local
+  checks verify failure propagation and log retention. Exercising the actual
+  hosted upload on a failed browser run is explicitly waived for this assessment,
+  not recorded as a passed test.
+- [x] Full and production audit results remain visible and informational,
   with the IMPROVEMENT-001 exceptions documented.
 - [x] Workflow setup and equivalent local verification commands are documented.
-- [ ] Workflow YAML validation and a successful GitHub-hosted run are recorded
+- [x] Workflow YAML validation and a successful GitHub-hosted run are recorded
   in the implementation notes before marking this item complete.
 
 ## Verification
 
-Validate the workflow syntax and confirm that required checks propagate failure
-instead of being silently ignored. Verify artifact collection on browser failure
-and distinguish informational audit findings from successful quality checks.
-Record the GitHub run URL and results when the workflow is published and run.
-Local checks alone do not establish GitHub-hosted execution success.
+Workflow syntax, required-check failure propagation and audit error handling were
+validated locally. Hosted success is based on the user's confirmation of the
+linked run. Actual browser-failure upload testing is waived as stated above;
+the green run does not exercise that path. Local checks alone do not establish
+GitHub-hosted execution success.
 
 ## Implementation and local verification
 
@@ -72,7 +80,22 @@ shell syntax and failure-handling checks, local quality checks, frontend checks,
 Storybook build, and both browser suites passed. Separate Standards and Spec
 reviews of the uncommitted changes found no issues.
 
-Hosted acceptance remains unverified, including actual triggers, clean Linux
-installation and artifact upload. No commit or push has been performed. See
-[implementation notes](../.scratch/IMPROVEMENT-004/notes.md) for verification
-details, limitations and the remaining hosted check.
+## Hosted evidence and assessment closure
+
+Implemented in commit `cbb660d38b68dbd49f5e05cf5112547a9f03b4e3`. The user pushed
+the commit and confirmed that [run 41821753845](https://github.com/Http400/kyc-app/actions/runs/41821753845)
+was green. Direct access to the run was unavailable to the agent, so hosted job
+success is attributed to the user rather than an independent log inspection.
+
+The user downloaded the `dependency-audits` artifact and supplied its two reports
+locally. Both are valid npm audit JSON without collection errors. The full report
+contains 15 affected packages (13 moderate, 2 low); production contains 5
+(3 moderate, 2 low), all in the Swagger chain. There are no high/critical findings
+or new advisories or affected packages relative to the accepted IMPROVEMENT-001
+baseline. Counts do not represent distinct advisories.
+
+Hosted browser-failure uploads remain untested under the explicit assessment
+exception above. The PR trigger is configured and statically validated; the
+reported hosted execution covers a push to `main`.
+See [implementation notes](../.scratch/IMPROVEMENT-004-add-github-actions-ci/notes.md) for evidence and
+limits. The temporary downloaded reports remain untracked.

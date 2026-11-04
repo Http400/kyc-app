@@ -16,8 +16,14 @@ Ticket: [Add GitHub Actions CI](../../tickets/IMPROVEMENT-004-add-github-actions
 - Apply the code-review skill to uncommitted changes against baseline
   `62eb4b671a727dd5a6c46ddf65497faa198c5dc6`, including new untracked files.
 
-No commits or pushes are authorized. Keep lifecycle status in tickets/STATUS.md;
-completion requires a successful GitHub-hosted run. Workflow validation and local
-checks do not establish hosted success. No new application behavior is introduced,
-so validation uses the existing suites and workflow execution boundaries rather
-than adding implementation-shaped unit tests.
+The original implementation authorization excluded commits and pushes. The user
+subsequently authorized commit `cbb660d`, pushed it, and confirmed a green hosted
+run. See [the closure record](notes.md#hosted-evidence-and-assessment-closure) for
+the run URL, inspected audit artifacts and the accepted hosted failure-upload
+verification limitation. The PR trigger was validated statically only.
+
+Keep lifecycle status in tickets/STATUS.md. Workflow validation and local checks
+alone do not establish hosted success. No new application behavior was introduced;
+validation used the existing suites and workflow execution boundaries rather
+than implementation-shaped unit tests. The closure request authorizes only
+documentation changes, with no additional commit or push.

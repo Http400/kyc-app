@@ -15,3 +15,4 @@ not been assessed against the acceptance criteria during this setup.
 | [IMPROVEMENT-002](IMPROVEMENT-002-fix-lint-failure.md) | done | Replaced search synchronization effect; route regressions, lint, frontend checks, and quality pass. |
 | [IMPROVEMENT-003](IMPROVEMENT-003-fix-storybook-development-previews.md) | done | Previews and Docs render; cold/warm browser checks, configuration typecheck, quality, and build pass. |
 | [IMPROVEMENT-004](IMPROVEMENT-004-add-github-actions-ci.md) | done | GitHub CI pass confirmed by user; audit artifacts inspected and match accepted findings. Hosted failure-upload testing waived for assessment; PR trigger validated statically. |
+| [IMPROVEMENT-005](IMPROVEMENT-005-fix-reviewer-search-character-loss.md) | done | Preserved newer search edits across navigation updates; regression, 20 stress repetitions, frontend checks, and quality pass locally. Hosted CI pending. |

@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Suspense, type ComponentProps } from 'react'
 import { createMemoryRouter, RouterProvider, useLoaderData } from 'react-router'
 import { expect, describe, it, vi } from 'vitest'
 
@@ -9,8 +10,6 @@ import ReviewerApplicationsPage, {
   ReviewerApplicationsView,
   type ReviewerApplicationsResponse,
 } from './applications'
-
-import type { ComponentProps } from 'react'
 
 const response = {
   kind: 'found',
@@ -28,13 +27,21 @@ const response = {
   },
 } satisfies ReviewerApplicationsResponse
 
-function renderRoute(initialEntry: string, beforeLoad?: () => Promise<void>) {
+function renderRoute(
+  initialEntry: string,
+  beforeLoad?: (request: Request) => Promise<void>,
+  beforeCommit?: (query: string) => void,
+) {
+  function CommitGate({ query }: { query: string }) {
+    beforeCommit?.(query)
+    return null
+  }
   const router = createMemoryRouter(
     [
       {
         path: '/reviewer/applications',
         loader: async ({ request }) => {
-          await beforeLoad?.()
+          await beforeLoad?.(request)
           const data = await clientLoader({ request } as Parameters<
             typeof clientLoader
           >[0])
@@ -57,14 +64,17 @@ function renderRoute(initialEntry: string, beforeLoad?: () => Promise<void>) {
         Component: function TestRoute() {
           const loaderData = useLoaderData<typeof clientLoader>()
           return (
-            <ReviewerApplicationsPage
-              loaderData={loaderData}
-              // Framework-only metadata is unused by this page.
-              {...({} as Omit<
-                ComponentProps<typeof ReviewerApplicationsPage>,
-                'loaderData'
-              >)}
-            />
+            <>
+              <ReviewerApplicationsPage
+                loaderData={loaderData}
+                // Framework-only metadata is unused by this page.
+                {...({} as Omit<
+                  ComponentProps<typeof ReviewerApplicationsPage>,
+                  'loaderData'
+                >)}
+              />
+              <CommitGate query={loaderData.q} />
+            </>
           )
         },
         HydrateFallback: () => null,
@@ -72,7 +82,11 @@ function renderRoute(initialEntry: string, beforeLoad?: () => Promise<void>) {
     ],
     { initialEntries: [initialEntry] },
   )
-  const view = render(<RouterProvider router={router} />)
+  const view = render(
+    <Suspense fallback={null}>
+      <RouterProvider router={router} />
+    </Suspense>,
+  )
   return { router, ...view }
 }
 
@@ -92,6 +106,69 @@ async function expectRouteSearch(
 }
 
 describe('Reviewer applications route', () => {
+  it('preserves a newer edit when an older navigation commits', async () => {
+    // Hold one rendered navigation until the next keystroke has started a
+    // second loader, then let the older render commit first.
+    const user = userEvent.setup()
+    let releaseCommit!: () => void
+    let releaseLoader!: () => void
+    let holdCommit = true
+    const commit = new Promise<void>((resolve) => {
+      releaseCommit = resolve
+    })
+    const loader = new Promise<void>((resolve) => {
+      releaseLoader = resolve
+    })
+    const reachedCommit = vi.fn()
+    const reachedLoader = vi.fn()
+    const { router } = renderRoute(
+      '/reviewer/applications?q=Ada%20Lo&status=all&page=0',
+      async (request) => {
+        if (new URL(request.url).searchParams.get('q') === 'Ada Love') {
+          reachedLoader()
+          await loader
+        }
+      },
+      (query) => {
+        if (query === 'Ada Lov' && holdCommit) {
+          reachedCommit()
+          throw commit
+        }
+      },
+    )
+    await expectRouteSearch(router, { q: 'Ada Lo', status: 'all', page: '0' })
+    const input = screen.getByRole('textbox', { name: 'Search' })
+    try {
+      await user.type(input, 'v')
+      await waitFor(() => expect(reachedCommit).toHaveBeenCalled())
+      await user.type(input, 'e')
+      await waitFor(() => expect(reachedLoader).toHaveBeenCalled())
+      expect(input).toHaveValue('Ada Love')
+      await act(async () => {
+        holdCommit = false
+        releaseCommit()
+        await commit
+      })
+      expect(input).toHaveValue('Ada Love')
+      expect(input).toHaveFocus()
+      await act(async () => {
+        releaseLoader()
+        await loader
+      })
+      await user.type(input, 'lace')
+      await expectRouteSearch(router, {
+        q: 'Ada Lovelace',
+        status: 'all',
+        page: '0',
+      })
+      expect(screen.getByRole('textbox', { name: 'Search' })).toBe(input)
+    } finally {
+      holdCommit = false
+      releaseCommit()
+      releaseLoader()
+    }
+  })
+
   it('synchronizes direct navigation and back/forward history, including empty search', async () => {
     const { router } = renderRoute(
       '/reviewer/applications?q=Ada&status=all&page=1',
@@ -136,6 +213,57 @@ describe('Reviewer applications route', () => {
       q: 'Ada Lovelace',
       status: 'all',
       page: '0',
+    })
+  })
+
+  it('restores queries from local edits when navigating back and forward', async () => {
+    const user = userEvent.setup()
+    const { router } = renderRoute(
+      '/reviewer/applications?q=Ada&status=all&page=0',
+    )
+    await expectRouteSearch(router, { q: 'Ada', status: 'all', page: '0' })
+    const input = screen.getByRole('textbox', { name: 'Search' })
+    await user.type(input, 'L')
+    await expectRouteSearch(router, { q: 'AdaL', status: 'all', page: '0' })
+    await user.type(input, 'o')
+    await expectRouteSearch(router, { q: 'AdaLo', status: 'all', page: '0' })
+    await act(() => router.navigate(-1))
+    await expectRouteSearch(router, { q: 'AdaL', status: 'all', page: '0' })
+    await act(() => router.navigate(1))
+    await expectRouteSearch(router, { q: 'AdaLo', status: 'all', page: '0' })
+    await user.clear(input)
+    await expectRouteSearch(router, { q: '', status: 'all', page: '0' })
+    expect(screen.getByRole('textbox', { name: 'Search' })).toBe(input)
+    expect(input).toHaveFocus()
+    await act(() =>
+      router.navigate('/reviewer/applications?q=Grace&status=approved&page=1'),
+    )
+    await expectRouteSearch(router, {
+      q: 'Grace',
+      status: 'approved',
+      page: '1',
+    })
+  })
+
+  it('clears search, status, and pagination together', async () => {
+    const user = userEvent.setup()
+    const { router } = renderRoute(
+      '/reviewer/applications?q=missing&status=approved&page=2',
+    )
+    await expectRouteSearch(router, {
+      q: 'missing',
+      status: 'approved',
+      page: '2',
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Clear search and status' }),
+    )
+    await expectRouteSearch(router, { q: '', status: 'all', page: '0' })
+    await act(() => router.navigate(-1))
+    await expectRouteSearch(router, {
+      q: 'missing',
+      status: 'approved',
+      page: '2',
     })
   })
 
@@ -206,6 +334,7 @@ describe('Reviewer applications overview', () => {
         onSearch={vi.fn()}
         onStatus={vi.fn()}
         onPage={vi.fn()}
+        onClearFilters={vi.fn()}
       />,
     )
 
@@ -252,6 +381,7 @@ describe('Reviewer applications overview', () => {
         onSearch={onSearch}
         onStatus={onStatus}
         onPage={onPage}
+        onClearFilters={vi.fn()}
       />,
     )
 
@@ -268,6 +398,7 @@ describe('Reviewer applications overview', () => {
 
   it('explains empty results and lets staff clear filters', async () => {
     const user = userEvent.setup()
+    const onClearFilters = vi.fn()
     const onSearch = vi.fn()
     const onStatus = vi.fn()
     const empty: ReviewerApplicationsResponse = {
@@ -283,6 +414,7 @@ describe('Reviewer applications overview', () => {
         onSearch={onSearch}
         onStatus={onStatus}
         onPage={vi.fn()}
+        onClearFilters={onClearFilters}
       />,
     )
     expect(
@@ -291,8 +423,7 @@ describe('Reviewer applications overview', () => {
     await user.click(
       screen.getByRole('button', { name: 'Clear search and status' }),
     )
-    expect(onSearch).toHaveBeenCalledWith('')
-    expect(onStatus).toHaveBeenCalledWith('all')
+    expect(onClearFilters).toHaveBeenCalledOnce()
   })
 
   it('shows denial and API error without application data', () => {
@@ -305,6 +436,7 @@ describe('Reviewer applications overview', () => {
         onSearch={vi.fn()}
         onStatus={vi.fn()}
         onPage={vi.fn()}
+        onClearFilters={vi.fn()}
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent(
@@ -321,6 +453,7 @@ describe('Reviewer applications overview', () => {
         onSearch={vi.fn()}
         onStatus={vi.fn()}
         onPage={vi.fn()}
+        onClearFilters={vi.fn()}
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent(

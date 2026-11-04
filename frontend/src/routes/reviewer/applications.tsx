@@ -15,8 +15,8 @@ import {
   TextField,
   Typography,
 } from '@kyc/ui'
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useId, useState } from 'react'
+import { useLocation, useNavigate, useNavigationType } from 'react-router'
 import { z } from 'zod'
 
 import styles from './applications.module.css'
@@ -119,6 +119,7 @@ export function ReviewerApplicationsView({
   onSearch,
   onStatus,
   onPage,
+  onClearFilters,
 }: {
   response: ReviewerApplicationsResponse
   q: string
@@ -127,6 +128,7 @@ export function ReviewerApplicationsView({
   onSearch: (value: string) => void
   onStatus: (value: ReviewerApplicationStatus) => void
   onPage: (value: number) => void
+  onClearFilters: () => void
 }) {
   if (response.kind === 'denied') {
     return (
@@ -226,14 +228,7 @@ export function ReviewerApplicationsView({
             Recent applications
           </h2>
           {filteredApplications.length === 0 ? (
-            <EmptyResults
-              q={q}
-              status={status}
-              onClear={() => {
-                onSearch('')
-                onStatus('all')
-              }}
-            />
+            <EmptyResults q={q} status={status} onClear={onClearFilters} />
           ) : (
             <>
               <Box className={styles.tableViewport}>
@@ -433,10 +428,28 @@ export default function ReviewerApplicationsPage({
   loaderData,
 }: Route.ComponentProps) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const source = useId()
   const { q, status, page, response } = loaderData
-  const [search, setSearch] = useState({ loaderQuery: q, value: q })
-  if (search.loaderQuery !== q) {
-    setSearch({ loaderQuery: q, value: q })
+  const [search, setSearch] = useState({
+    locationKey: location.key,
+    value: q,
+    revision: 0,
+  })
+  if (search.locationKey !== location.key) {
+    const edit = location.state?.reviewerSearch
+    // An older local navigation may finish rendering after the next keystroke.
+    // History traversal must still restore the query saved in that entry.
+    const olderEdit =
+      navigationType !== 'POP' &&
+      edit?.source === source &&
+      edit.revision < search.revision
+    setSearch({
+      ...search,
+      locationKey: location.key,
+      value: olderEdit ? search.value : q,
+    })
   }
   const searchValue = search.value
   const updateSearch = (next: {
@@ -444,12 +457,16 @@ export default function ReviewerApplicationsPage({
     status?: ReviewerApplicationStatus
     page?: number
   }) => {
-    const search = new URLSearchParams({
+    const revision = search.revision + 1
+    setSearch({ ...search, value: next.q ?? searchValue, revision })
+    const params = new URLSearchParams({
       q: next.q !== undefined ? next.q : searchValue,
       status: next.status ?? status,
       page: String(next.page ?? page),
     })
-    void navigate(`/reviewer/applications?${search}`)
+    void navigate(`/reviewer/applications?${params}`, {
+      state: { reviewerSearch: { source, revision } },
+    })
   }
   return (
     <ReviewerApplicationsView
@@ -457,12 +474,10 @@ export default function ReviewerApplicationsPage({
       q={searchValue}
       status={status}
       page={page}
-      onSearch={(value) => {
-        setSearch({ loaderQuery: q, value })
-        updateSearch({ q: value, page: 0 })
-      }}
+      onSearch={(value) => updateSearch({ q: value, page: 0 })}
       onStatus={(value) => updateSearch({ status: value, page: 0 })}
       onPage={(value) => updateSearch({ page: value })}
+      onClearFilters={() => updateSearch({ q: '', status: 'all', page: 0 })}
     />
   )
 }

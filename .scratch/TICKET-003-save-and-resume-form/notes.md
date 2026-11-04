@@ -24,3 +24,13 @@ No manual screen-reader audit or hosted CI run was performed. Final review/submi
 - Second snapshot: 81 frontend tests, typecheck and lint passed.
 - Final code restored byte-for-byte from the completed implementation backup.
 - Final snapshot rechecked: 84 frontend tests, typecheck, lint and diff whitespace checks pass. The previously passing 9 browser tests and production build apply to the identical restored implementation.
+
+## Review fixes
+
+Addressed all three functional review findings and the retained autocomplete gap. Failed post-upload refresh now freezes editing and offers a GET-only retry, displays the latest persisted answers, and never automatically PATCHes or advances. Logout signals successful revocation before clearing queries/navigating so the already-confirmed departure bypasses the dirty blocker; failed logout preserves edits and the blocker. Continue/Save and review check required controls, announce missing fields and focus the first invalid input; partial Save remains permissive. Added personal/contact/residential input-purpose tokens.
+
+Regression tests cover another tab changing answers during refresh failure (including repeated refresh failure and no extra PATCH/upload), successful dirty logout after one confirmation, logout failure/retry and retained navigation protection, and partial Save versus incomplete navigation. Browser journeys now additionally verify empty required fields, consent, missing evidence, first-invalid focus, autocomplete metadata and confirmed dirty logout at 320px and 1440px. Initial browser run exposed suppressed native invalid-field focus; explicit focus/announcement fixed it.
+
+Final verification: 88 frontend tests in 7 files, frontend typecheck, repository lint, production build/prerender and all 9 Chromium E2E tests pass. git diff --check passes. Existing Swagger chunk-size warning remains. No manual screen-reader audit or hosted CI run performed.
+
+Original tickets, backend and API contract remain unchanged. The existing three commits are preserved; the user authorized a follow-up commit containing the review fixes and scratch-directory rename. Optional naming, answer-type and shared-decoder cleanup remains deferred as agreed.

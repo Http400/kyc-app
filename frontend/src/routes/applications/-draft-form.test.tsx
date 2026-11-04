@@ -3,10 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 
 import { server } from '../../test/server'
 
+import * as api from './-draft-api'
 import { DraftPage } from './-draft-form'
 
 const id = 'b9ac53c6-7526-40eb-a637-bb18ecf434af'
@@ -28,10 +29,14 @@ const response = (
       },
     },
   })
-function setup() {
+afterEach(() => vi.restoreAllMocks())
+
+function setup(step: api.Step = 'personal-details') {
   server.use(http.get(path, () => response()))
   const router = createMemoryRouter([
-    { path: '/', element: <DraftPage id={id} step="personal-details" /> },
+    { path: '/', element: <DraftPage id={id} step={step} /> },
+    { path: '/sign-in', element: <h1>Signed out</h1> },
+    { path: '/applications/:id/:step', element: <h1>Next step</h1> },
   ])
   render(
     <QueryClientProvider
@@ -142,4 +147,105 @@ it('prevents duplicate requests and exposes pending outside the busy form', asyn
   await waitFor(() =>
     expect(screen.getByRole('status')).toHaveTextContent('was saved'),
   )
+})
+
+it('refreshes after an uploaded document without overwriting concurrent answers', async () => {
+  const initial: api.Draft = {
+    status: 'draft',
+    currentStep: 'identity-and-address',
+    answers: { street: 'Original' },
+    documentEvidence: { present: false },
+    version: 1,
+  }
+  vi.spyOn(api, 'loadDraft')
+    .mockResolvedValueOnce(initial)
+    .mockRejectedValueOnce(new Error('Refresh failed'))
+    .mockRejectedValueOnce(new Error('Still unavailable'))
+    .mockResolvedValueOnce({
+      ...initial,
+      answers: { street: 'Other tab edit' },
+      documentEvidence: { present: true },
+      version: 4,
+    })
+  const upload = vi.spyOn(api, 'uploadEvidence').mockResolvedValue(undefined)
+  const save = vi
+    .spyOn(api, 'saveDraft')
+    .mockResolvedValue({ ...initial, version: 2 })
+  const user = setup('identity-and-address')
+  const street = await screen.findByLabelText('Street (required)')
+  await user.upload(
+    screen.getByLabelText('Document evidence (JPG or PNG, up to 10 MiB)'),
+    new File(['png'], 'id.png', { type: 'image/png' }),
+  )
+  await user.click(screen.getByRole('button', { name: /^Save$/ }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Refresh failed')
+  expect(street).toHaveValue('Original')
+  expect(street).toBeDisabled()
+  expect(screen.getByRole('button', { name: /^Save$/ })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Save and review' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Retry refresh' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Still unavailable',
+  )
+  expect(street).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Retry refresh' }))
+  await waitFor(() => expect(street).toHaveValue('Other tab edit'))
+  expect(street).toBeEnabled()
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Review it before continuing',
+  )
+  expect(screen.queryByText('Next step')).not.toBeInTheDocument()
+  expect(save).toHaveBeenCalledTimes(1)
+  expect(upload).toHaveBeenCalledTimes(1)
+})
+
+it('leaves after a single dirty-logout confirmation', async () => {
+  const logout = vi.spyOn(api, 'logoutApplicant').mockResolvedValue(undefined)
+  const user = setup()
+  await user.type(await screen.findByLabelText('Name (required)'), ' edited')
+  await user.click(screen.getByRole('button', { name: 'Log out' }))
+  await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+  expect(
+    await screen.findByRole('heading', { name: 'Signed out' }),
+  ).toBeVisible()
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(logout).toHaveBeenCalledTimes(1)
+})
+
+it('preserves edits and navigation protection after logout failure and allows retry', async () => {
+  vi.spyOn(api, 'logoutApplicant')
+    .mockRejectedValueOnce(new Error('Logout failed'))
+    .mockResolvedValueOnce(undefined)
+  const user = setup()
+  const name = await screen.findByLabelText('Name (required)')
+  await user.type(name, ' edited')
+  await user.click(screen.getByRole('button', { name: 'Log out' }))
+  await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Logout failed')
+  expect(name).toHaveValue('Ada edited')
+  await user.click(screen.getByRole('button', { name: 'Back' }))
+  expect(await screen.findByRole('alertdialog')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+  await user.click(screen.getByRole('button', { name: 'Log out' }))
+  await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+  expect(
+    await screen.findByRole('heading', { name: 'Signed out' }),
+  ).toBeVisible()
+})
+
+it('blocks incomplete navigation while allowing partial Save', async () => {
+  const save = vi.spyOn(api, 'saveDraft').mockResolvedValue({
+    status: 'draft',
+    currentStep: 'personal-details',
+    answers: { name: 'Ada' },
+    documentEvidence: { present: false },
+    version: 2,
+  })
+  const user = setup()
+  await screen.findByLabelText('Name (required)')
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+  expect(save).not.toHaveBeenCalled()
+  expect(screen.queryByText('Next step')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /^Save$/ }))
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
 })

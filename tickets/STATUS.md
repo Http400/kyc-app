@@ -10,7 +10,7 @@ not been assessed against the acceptance criteria during this setup.
 | --- | --- | --- |
 | [TICKET-001](TICKET-001-frontend-registration.md) | done | Registration and review follow-up implemented; progress announcement regressions, frontend tests, backend browser flows, and Storybook verified. |
 | [TICKET-002](TICKET-002-frontend-login.md) | done | Login, accessible feedback and API journey navigation implemented; frontend, quality and real-backend browser checks pass. |
-| [TICKET-003](TICKET-003-frontend-save-and-resume-form.md) | done | API draft save/resume, evidence upload and logout implemented; 84 frontend tests, 9 backend browser tests, typecheck, build and quality pass. |
+| [TICKET-003](TICKET-003-frontend-save-and-resume-form.md) | done | Save/resume review fixes verified: GET-only refresh recovery, confirmed logout, navigation validation and autocomplete; 88 frontend tests, 9 browser tests, typecheck, lint and build pass. |
 | [IMPROVEMENT-001](IMPROVEMENT-001-fix-npm-audit-vulnerabilities.md) | done | Targeted fixes verified; no critical/high findings. Assessment exceptions accepted: 15 full/5 production affected packages (production: Swagger chain), plus retained legacy-peer-deps. See ticket for rationale. |
 | [IMPROVEMENT-002](IMPROVEMENT-002-fix-lint-failure.md) | done | Replaced search synchronization effect; route regressions, lint, frontend checks, and quality pass. |
 | [IMPROVEMENT-003](IMPROVEMENT-003-fix-storybook-development-previews.md) | done | Previews and Docs render; cold/warm browser checks, configuration typecheck, quality, and build pass. |

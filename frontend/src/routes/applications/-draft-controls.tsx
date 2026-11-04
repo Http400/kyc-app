@@ -21,10 +21,12 @@ export function Logout({
   disabled = false,
   beforeLogout,
   onPendingChange,
+  onLoggedOut,
 }: {
   disabled?: boolean
   beforeLogout?: () => boolean | Promise<boolean>
   onPendingChange?: (pending: boolean) => void
+  onLoggedOut?: () => void
 }) {
   const client = useQueryClient()
   const navigate = useNavigate()
@@ -43,6 +45,7 @@ export function Logout({
     setError(undefined)
     try {
       await logoutApplicant()
+      onLoggedOut?.()
       await client.cancelQueries()
       client.clear()
       await navigate('/sign-in')

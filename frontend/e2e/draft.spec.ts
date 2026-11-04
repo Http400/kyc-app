@@ -24,6 +24,14 @@ for (const width of [320, 1440]) {
     }
     await login()
     await page.getByRole('button', { name: 'Start application' }).click()
+    await page.getByRole('button', { name: 'Continue', exact: true }).click()
+    await expect(page).toHaveURL(/personal-details$/)
+    await expect(
+      page.getByLabel('Name (required)', { exact: true }),
+    ).toBeFocused()
+    await expect(
+      page.getByLabel('Name (required)', { exact: true }),
+    ).toHaveAttribute('autocomplete', 'name')
     await page
       .getByLabel('Name (required)', { exact: true })
       .fill('Ada Lovelace')
@@ -46,6 +54,9 @@ for (const width of [320, 1440]) {
     }
     for (const [label, value] of Object.entries(personal))
       await page.getByLabel(`${label} (required)`, { exact: true }).fill(value)
+    await page.getByRole('button', { name: 'Continue', exact: true }).click()
+    await expect(page).toHaveURL(/personal-details$/)
+    await expect(page.getByRole('checkbox')).toBeFocused()
     await page.getByRole('checkbox').check()
     await page.getByRole('button', { name: 'Continue', exact: true }).click()
     const identity = {
@@ -60,6 +71,9 @@ for (const width of [320, 1440]) {
     }
     for (const [label, value] of Object.entries(identity))
       await page.getByLabel(`${label} (required)`, { exact: true }).fill(value)
+    await page.getByRole('button', { name: 'Save and review' }).click()
+    await expect(page).toHaveURL(/identity-and-address$/)
+    await expect(page.getByLabel('Document evidence (JPG')).toBeFocused()
     if (width === 320)
       await page.route('**/document-evidence', (route) =>
         route.fulfill({ status: 503 }),
@@ -105,5 +119,12 @@ for (const width of [320, 1440]) {
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true)
+    await page
+      .getByLabel('Name (required)', { exact: true })
+      .fill('Unsaved name')
+    await page.getByRole('button', { name: 'Log out' }).click()
+    await page.getByRole('button', { name: 'Discard changes' }).click()
+    await expect(page).toHaveURL(/sign-in$/)
+    await expect(page.getByRole('alertdialog')).toHaveCount(0)
   })
 }
